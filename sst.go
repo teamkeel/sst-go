@@ -74,7 +74,7 @@ func fromEnvironment[T any](dest *T, name string) *T {
 		f := v.Field(i)
 
 		propName := toPropName(v.Type().Field(i).Name)
-		envVar := fmt.Sprintf("SST_%s_%s_%s", constructName, propName, name)
+		envVar := fmt.Sprintf("SST_%s_%s_%s", constructName, propName, normaliseId(name))
 
 		value := os.Getenv(envVar)
 		if value == "" {
@@ -93,4 +93,8 @@ func toConstructName(s string) string {
 
 func toPropName(s string) string {
 	return strings.ToLower(s[0:1]) + s[1:]
+}
+
+func normaliseId(s string) string {
+	return strings.ReplaceAll(s, "-", "_")
 }

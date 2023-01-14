@@ -39,6 +39,14 @@ func TestFunction(t *testing.T) {
 	assert.Equal(t, r.FunctionName, "the-function-name")
 }
 
+func TestNormaliseName(t *testing.T) {
+	t.Setenv("SST_Function_functionName_my_function", "the-function-name")
+
+	r := sst.Function("my-function")
+	assert.NotNil(t, r)
+	assert.Equal(t, r.FunctionName, "the-function-name")
+}
+
 func TestBucket(t *testing.T) {
 	t.Setenv("SST_Bucket_bucketName_MyBucket", "the-bucket-name")
 
