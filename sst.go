@@ -1,50 +1,73 @@
 package sst
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"reflect"
 	"strings"
 )
 
+func Secret(ctx context.Context, name string) (string, error) {
+	values, err := fetchValuesFromSSM(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	v, ok := values[name]
+	if !ok {
+		return "", fmt.Errorf("no secret set with name %s", name)
+	}
+
+	return v, nil
+}
+
+func Parameter(ctx context.Context, name string) (string, error) {
+	v, ok := os.LookupEnv(fmt.Sprintf("SST_Config_value_%s", name))
+	if !ok {
+		return "", fmt.Errorf("parameter %s is not set", name)
+	}
+	return v, nil
+}
+
 type BucketResources struct {
 	BucketName string
 }
 
-func Bucket(name string) *BucketResources {
-	return fromEnvironment(&BucketResources{}, name)
+func Bucket(ctx context.Context, name string) (*BucketResources, error) {
+	return fromEnvironment(ctx, &BucketResources{}, name)
 }
 
 type EventBusResources struct {
 	EventBusName string
 }
 
-func EventBus(name string) *EventBusResources {
-	return fromEnvironment(&EventBusResources{}, name)
+func EventBus(ctx context.Context, name string) (*EventBusResources, error) {
+	return fromEnvironment(ctx, &EventBusResources{}, name)
 }
 
 type FunctionResources struct {
 	FunctionName string
 }
 
-func Function(name string) *FunctionResources {
-	return fromEnvironment(&FunctionResources{}, name)
+func Function(ctx context.Context, name string) (*FunctionResources, error) {
+	return fromEnvironment(ctx, &FunctionResources{}, name)
 }
 
 type QueueResources struct {
 	QueueUrl string
 }
 
-func Queue(name string) *QueueResources {
-	return fromEnvironment(&QueueResources{}, name)
+func Queue(ctx context.Context, name string) (*QueueResources, error) {
+	return fromEnvironment(ctx, &QueueResources{}, name)
 }
 
 type TopicResources struct {
 	TopicArn string
 }
 
-func Topic(name string) *TopicResources {
-	return fromEnvironment(&TopicResources{}, name)
+func Topic(ctx context.Context, name string) (*TopicResources, error) {
+	return fromEnvironment(ctx, &TopicResources{}, name)
 }
 
 type RDSResources struct {
@@ -53,19 +76,19 @@ type RDSResources struct {
 	DefaultDatabaseName string
 }
 
-func RDS(name string) *RDSResources {
-	return fromEnvironment(&RDSResources{}, name)
+func RDS(ctx context.Context, name string) (*RDSResources, error) {
+	return fromEnvironment(ctx, &RDSResources{}, name)
 }
 
 type TableResources struct {
 	TableName string
 }
 
-func Table(name string) *TableResources {
-	return fromEnvironment(&TableResources{}, name)
+func Table(ctx context.Context, name string) (*TableResources, error) {
+	return fromEnvironment(ctx, &TableResources{}, name)
 }
 
-func fromEnvironment[T any](dest *T, name string) *T {
+func fromEnvironment[T any](ctx context.Context, dest *T, name string) (*T, error) {
 	v := reflect.ValueOf(dest).Elem()
 
 	constructName := toConstructName(v.Type().Name())
@@ -78,13 +101,21 @@ func fromEnvironment[T any](dest *T, name string) *T {
 
 		value := os.Getenv(envVar)
 		if value == "" {
-			return nil
+			return nil, fmt.Errorf("required env var %s not set for %s %s", envVar, constructName, normaliseId(name))
+		}
+
+		if strings.HasPrefix(value, fetchFromSecretPrefix) {
+			var err error
+			value, err = Secret(ctx, strings.TrimPrefix(value, fetchFromSecretPrefix))
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		f.SetString(value)
 	}
 
-	return dest
+	return dest, nil
 }
 
 func toConstructName(s string) string {
