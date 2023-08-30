@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+const paramPrefix = "SST_Parameter_value_"
+
+// Secrets returns all Config.Secret bindings as a map.
+func Secrets(ctx context.Context) (map[string]string, error) {
+	return fetchValuesFromSSM(ctx)
+}
+
+// Secret returns a single secret by name.
 func Secret(ctx context.Context, name string) (string, error) {
 	values, err := fetchValuesFromSSM(ctx)
 	if err != nil {
@@ -22,8 +30,22 @@ func Secret(ctx context.Context, name string) (string, error) {
 	return v, nil
 }
 
+// Parameters returns all Config.Parameter bindings as a map
+func Parameters(ctx context.Context) map[string]string {
+	params := map[string]string{}
+	for _, kv := range os.Environ() {
+		parts := strings.SplitN(kv, "=", 1)
+		key, value := parts[0], parts[1]
+		if strings.HasPrefix(key, paramPrefix) {
+			params[strings.TrimPrefix(key, paramPrefix)] = value
+		}
+	}
+	return params
+}
+
+// Parameter returns a single parameter by name
 func Parameter(ctx context.Context, name string) (string, error) {
-	v, ok := os.LookupEnv(fmt.Sprintf("SST_Config_value_%s", name))
+	v, ok := os.LookupEnv(fmt.Sprintf("%s%s", paramPrefix, name))
 	if !ok {
 		return "", fmt.Errorf("parameter %s is not set", name)
 	}
